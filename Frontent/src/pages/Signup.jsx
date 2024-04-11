@@ -1,5 +1,6 @@
-import React from "react";
-
+import React, { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom"
 import { FcParallelTasks } from "react-icons/fc";
 import { MdTaskAlt } from "react-icons/md";
 
@@ -8,10 +9,50 @@ import { BiLogoFacebook } from "react-icons/bi";
 import { Link } from "react-router-dom";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import { CgPassword } from "react-icons/cg";
+import { useSelector } from "react-redux";
+import { authActions } from "../store/auth";
+
+
 
 const Signup = () => {
+  const navigate = useNavigate();
+  const isLoggedIn = useSelector((state) => state.auth.isLoggedIn);
+  if (isLoggedIn === true) {
+    navigate('/home/all-task')
+  }
+  const [data, setData] = useState({ username: "", password: "", email: "" });
+  const change = (e) => {
+    const { name, value } = e.target;
+    setData({ ...data, [name]: value });
+  };
+  const submit = async () => {
+    try {
+      if (
+        data.username.length === "" &&
+        data.password.length === "" &&
+        data.email.length === ""
+      ) {
+        alert("all field are required ");
+      } else {
+        const response = await axios.post(
+          "http://localhost:8080/api/v1/sign-in",
+          data
+        );
+        console.log(response);
+        if (response.status === 201) {
+          setData({ username: "", password: "", email: "" });
+          alert(response.data.message);
+          navigate("/login");
+        }
+      }
+    } catch (err) {
+      alert(err.response.data.message)
+    }
+  }
+
   return (
-    <div className="bg-gradient-to-l from-gray-900 to-purple-900 text-white min-h-screen">
+    <div className="bg-gradient-to-l from-gray-900 to-purple-900 text-purple-900 min-h-screen">
       <Navbar />
       {/* <div className="h-screen w-full">
                 <div className="h-full w-full flex items-center justify-center ">
@@ -111,19 +152,31 @@ const Signup = () => {
             </p>
           </div>
           <input
-            className="text-sm w-full px-4 py-2 border border-solid border-gray-300 rounded"
-            type="username"
+            className="text-sm w-full px-4 py-2 border border-solid border-gray-300 rounded text-purple-900"
+            type="text"
             placeholder="Username"
+            name="username"
+            onChange={change}
+            value={data.username}
+            required
           />
           <input
             className="text-sm w-full px-4 py-2 border border-solid border-gray-300 rounded mt-4"
-            type="text"
+            type="email"
+            name="email"
             placeholder="Email Address"
+            onChange={change}
+            value={data.email}
+            required
           />
           <input
             className="text-sm w-full px-4 py-2 border border-solid border-gray-300 rounded mt-4"
             type="password"
+            name="password"
             placeholder="Password"
+            onChange={change}
+            value={data.password}
+            required
           />
           <div className="mt-4 flex justify-between font-semibold text-sm">
             <label className="flex text-slate-500 hover:text-slate-600 cursor-pointer">
@@ -140,7 +193,7 @@ const Signup = () => {
           <div className="text-center md:text-left">
             <button
               className="mt-4 bg-blue-600 hover:bg-blue-700 px-4 py-2 text-white uppercase rounded text-xs tracking-wider"
-              type="submit"
+              onClick={submit}
             >
               SignUp
             </button>

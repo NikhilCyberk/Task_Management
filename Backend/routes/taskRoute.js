@@ -91,7 +91,9 @@ router.get("/tasks/:id", async (req, res) => {
 router.post("/create-task", authanticationToken, async (req, res) => {
   try {
     const { title, description, dueDate, status, priority } = req.body;
-    const { id } = req.headers;
+    const userId = req.headers.id; // Assuming id is the user's ID
+
+    let complete = status === "Completed";
 
     // Check if required fields are provided
     if (!title || !dueDate || !status || !priority) {
@@ -99,20 +101,33 @@ router.post("/create-task", authanticationToken, async (req, res) => {
     }
 
     // Create a new task
-    const newTask = new Task({ title, description, dueDate, priority, status });
+    const newTask = new Task({
+      title,
+      description,
+      dueDate,
+      priority,
+      status,
+      complete,
+    });
+
     await newTask.save();
 
     // Add the task to the user's tasks
-    const user = await User.findByIdAndUpdate(id, {
-      $push: { tasks: newTask._id },
-    });
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $push: { tasks: newTask._id } },
+      { new: true }
+    );
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    return res.status(201).json({ message: "Task created" });
+    return res
+      .status(201)
+      .json({ message: "Task created", taskId: newTask._id });
   } catch (err) {
-    // console.log(err);
+    console.error(err); // Log the error for debugging
     return res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -121,7 +136,7 @@ router.post("/create-task", authanticationToken, async (req, res) => {
 router.put("/update-tasks/:id", authanticationToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, dueDate, priority, completed } = req.body;
+    const { title, description, dueDate, priority, complete } = req.body;
 
     // Validate the task ID
     if (!isValidObjectId(id)) {
@@ -131,7 +146,7 @@ router.put("/update-tasks/:id", authanticationToken, async (req, res) => {
     // Find the task and update it
     const task = await Task.findByIdAndUpdate(
       id,
-      { title, description, dueDate, priority, completed },
+      { title, description, dueDate, priority, complete },
       { new: true, runValidators: true }
     );
 
@@ -150,26 +165,34 @@ router.put("/update-comp-tasks/:id", authanticationToken, async (req, res) => {
   try {
     const { id } = req.params;
     const taskData = await Task.findById(id);
-    const CompTask = taskData.complete;
+
+    if (!taskData) {
+      return res.status(404).json({ message: "Task not found" });
+    }
 
     // Validate the task ID
     if (!isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid task ID" });
     }
+    const CompTask = taskData.complete;
 
-    // Find the task and update it
-    const task = await Task.findByIdAndUpdate(
-      id,
-      { complete: !CompTask },
-      { new: true, runValidators: true }
-    );
-
-    if (!task) {
-      return res.status(404).json({ message: "Task not found" });
+    if (taskData.status === "Pending") {
+      taskData.status = "In Progress";
+    } else if (taskData.status === "In Progress") {
+      taskData.status = "Completed";
+      taskData.complete = !CompTask;
+    } else {
+      return res.status(200).json({ message: "task already completed" });
     }
 
-    return res.status(200).json(task);
+    // Save the updated task
+    const updatedTask = await taskData.save();
+
+    // console.log(updatedTask);
+
+    return res.status(200).json(updatedTask);
   } catch (err) {
+    console.error(err);
     return res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -178,21 +201,21 @@ router.put("/update-comp-tasks/:id", authanticationToken, async (req, res) => {
 router.put("/update-imp-tasks/:id", authanticationToken, async (req, res) => {
   try {
     const { id } = req.params;
-
-    const taskData = await Task.findById(id);
-    const ImpTask = taskData.important;
-
+    // console.log(id, 100);
     // Validate the task ID
     if (!isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid task ID" });
     }
-
-    // Find the task and update it
+    const taskData = await Task.findById(id);
+    const ImpTask = taskData.important;
+    // Find the task and update its "important" status
     const task = await Task.findByIdAndUpdate(
       id,
       { important: !ImpTask },
       { new: true, runValidators: true }
     );
+
+    // console.log(taskData, 2000);
 
     if (!task) {
       return res.status(404).json({ message: "Task not found" });
@@ -200,6 +223,7 @@ router.put("/update-imp-tasks/:id", authanticationToken, async (req, res) => {
 
     return res.status(200).json(task);
   } catch (err) {
+    // console.log(err, 30000);
     return res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -209,7 +233,7 @@ router.delete("/delete-tasks/:id", authanticationToken, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.headers.id;
-
+    // console.log(id, 100);
     // Validate the task ID
     if (!isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid task ID" });
